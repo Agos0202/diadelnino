@@ -14,7 +14,7 @@ CLOUDINARY_API_SECRET=tu_api_secret
 CLOUDINARY_DB_PUBLIC_ID=comuna_asistencias_db
 ADMIN_USER=FloridaLuisiana
 ADMIN_PASSWORD=Comuna2026*
-API_PORT=4000
+API_PORT=3000
 ```
 
 3. Si desplegas el frontend en Netlify y la API en otro servicio, define en Netlify:
@@ -27,9 +27,9 @@ Si no se define, el frontend usa rutas relativas (`/api/...`) en el mismo domini
 
 ## Scripts
 
-- `npm run dev`: levanta frontend (puerto 3000) + API (puerto 4000)
-- `npm start`: levanta solo frontend
-- `npm run api`: levanta solo API
+- `npm run dev`: levanta frontend (puerto 3001) + API (puerto 3000)
+- `npm start`: levanta solo frontend en el puerto 3001
+- `npm run api`: levanta solo API en el puerto 3000
 - `npm run build`: build de produccion frontend
 
 ## Flujo de datos
