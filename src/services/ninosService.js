@@ -1,4 +1,4 @@
-import { assertSupabaseConfigured, supabase } from '../supabaseClient';
+import { assertSupabaseConfigured } from '../supabaseClient';
 
 const TABLA_NINOS = 'diadelnino';
 

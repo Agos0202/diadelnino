@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ModalAlerta from './ModalAlerta';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -83,7 +83,6 @@ function Administracion({ onVolver, onLogout }) {
   const [guardando, setGuardando] = useState(false);
   const [seleccionados, setSeleccionados] = useState(() => new Set());
   const [eliminandoSeleccionados, setEliminandoSeleccionados] = useState(false);
-  const [busquedaAsistencia, setBusquedaAsistencia] = useState('');
   const [reporteBusqueda, setReporteBusqueda] = useState('');
   const [reporteBarrio, setReporteBarrio] = useState('todos');
   const [reporteEdadFiltro, setReporteEdadFiltro] = useState('todos');
@@ -92,7 +91,6 @@ function Administracion({ onVolver, onLogout }) {
   const [crudError, setCrudError] = useState('');
   const [descargandoPdf, setDescargandoPdf] = useState(false);
   const [modalAlerta, setModalAlerta] = useState({ visible: false, tipo: 'info', titulo: '', mensaje: '' });
-  const [descargandoPdfAsistencia, setDescargandoPdfAsistencia] = useState(false);
   const [seccionActiva, setSeccionActiva] = useState(obtenerSeccionDesdeRuta);
   const [modoCarga, setModoCarga] = useState('manual');
   const [csvFiltro, setCsvFiltro] = useState('todos');
@@ -161,19 +159,6 @@ function Administracion({ onVolver, onLogout }) {
       return texto.includes(termino);
     });
   }, [asistencias, busqueda]);
-
-  const asistenciasEventoFiltradas = useMemo(() => {
-    const termino = busquedaAsistencia.trim().toLowerCase();
-
-    if (!termino) {
-      return asistencias;
-    }
-
-    return asistencias.filter((item) => {
-      const texto = `${item.apellido} ${item.nombre} ${item.telefono} ${item.dni || item.email || ''}`.toLowerCase();
-      return texto.includes(termino);
-    });
-  }, [asistencias, busquedaAsistencia]);
 
   const participantesConNumero = useMemo(() => {
     return asistencias
@@ -409,17 +394,6 @@ function Administracion({ onVolver, onLogout }) {
     }
   };
 
-  const onCambiarEstadoAsistencia = async (asistencia, estadoAsistencia) => {
-    try {
-      setAsistencias((prev) => prev.map((item) => (item.id === asistencia.id ? { ...item, estadoAsistencia } : item)));
-      setModalAlerta({ visible: true, tipo: 'success', titulo: 'Estado actualizado', mensaje: 'El estado de asistencia fue actualizado.' });
-    } catch (error) {
-      setCrudError(error.message || 'No se pudo actualizar la asistencia del niño.');
-      setModalAlerta({ visible: true, tipo: 'error', titulo: 'Error', mensaje: error.message || 'No se pudo actualizar la asistencia del niño.' });
-    }
-  };
-
-
   const onDescargarPdf = async () => {
     if (asistenciasFiltradas.length === 0 || descargandoPdf) {
       return;
@@ -486,100 +460,6 @@ function Administracion({ onVolver, onLogout }) {
     }
   };
 
-  const onDescargarPdfAsistencia = async () => {
-    if (descargandoPdfAsistencia) {
-      return;
-    }
-
-    const presentes = asistencias.filter((item) => item.estadoAsistencia === 'presente');
-    const ausentes = asistencias.filter((item) => item.estadoAsistencia !== 'presente');
-
-    setDescargandoPdfAsistencia(true);
-
-    try {
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const colorPrimario = [32, 78, 53];
-      const colorSecundario = [231, 244, 230];
-      const colorTextoSuave = [75, 94, 84];
-      const colorRojo = [140, 50, 40];
-      const colorRojoClaro = [253, 235, 232];
-
-      doc.setFillColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
-      doc.rect(0, 0, pageWidth, 90, 'F');
-
-      try {
-        const logoDataUrl = await cargarLogoComoDataUrl();
-        doc.addImage(logoDataUrl, 'PNG', 36, 18, 56, 56);
-      } catch (error) {
-        // Si el logo falla, el PDF se genera igual.
-      }
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.text('Asistencia al Evento - Dia del Niño', 102, 42);
-      doc.setFontSize(11);
-      doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, 102, 62);
-
-      let cursorY = 110;
-
-      doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Presentes (${presentes.length})`, 36, cursorY);
-      cursorY += 10;
-
-      autoTable(doc, {
-        startY: cursorY,
-        head: [['N°', 'Apellido', 'Nombre', 'Telefono', 'DNI']],
-        body: presentes.length > 0
-          ? presentes.map((item, index) => [
-              obtenerNumeroSorteo(item, index),
-              item.apellido,
-              item.nombre,
-              item.telefono,
-              item.dni || item.email,
-            ])
-          : [['', 'Sin registros', '', '', '']],
-        theme: 'grid',
-        headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255] },
-        alternateRowStyles: { fillColor: colorSecundario },
-        styles: { fontSize: 10, textColor: colorTextoSuave },
-        didDrawPage: (data) => { cursorY = data.cursor.y; },
-      });
-
-      cursorY = doc.lastAutoTable.finalY + 18;
-
-      doc.setTextColor(colorRojo[0], colorRojo[1], colorRojo[2]);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Ausentes (${ausentes.length})`, 36, cursorY);
-      cursorY += 10;
-
-      autoTable(doc, {
-        startY: cursorY,
-        head: [['N°', 'Apellido', 'Nombre', 'Telefono', 'DNI']],
-        body: ausentes.length > 0
-          ? ausentes.map((item, index) => [
-              obtenerNumeroSorteo(item, index),
-              item.apellido,
-              item.nombre,
-              item.telefono,
-              item.dni || item.email,
-            ])
-          : [['', 'Sin registros', '', '', '']],
-        theme: 'grid',
-        headStyles: { fillColor: colorRojo, textColor: [255, 255, 255] },
-        alternateRowStyles: { fillColor: colorRojoClaro },
-        styles: { fontSize: 10, textColor: colorTextoSuave },
-      });
-
-      doc.save('asistencia_fiesta_dia_del_nino.pdf');
-    } finally {
-      setDescargandoPdfAsistencia(false);
-    }
-  };
-
   const esperar = (ms) => new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
@@ -600,7 +480,7 @@ function Administracion({ onVolver, onLogout }) {
     }
   };
 
-  const normalizarBarrioSlug = (valor) => {
+  const normalizarBarrioSlug = useCallback((valor) => {
     const texto = String(valor ?? '').trim();
     if (!texto) {
       return '';
@@ -612,9 +492,9 @@ function Administracion({ onVolver, onLogout }) {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
-  };
+  }, []);
 
-  const formatearBarrio = (valor) => {
+  const formatearBarrio = useCallback((valor) => {
     const slug = normalizarBarrioSlug(valor);
     const mapa = {
       'la-cancha': 'La Cancha',
@@ -627,16 +507,7 @@ function Administracion({ onVolver, onLogout }) {
     };
 
     return mapa[slug] || String(valor ?? '').trim() || 'Sin barrio';
-  };
-
-  const obtenerEtapaEdad = (edad) => {
-    const numero = Number.parseInt(edad, 10);
-    if (!Number.isFinite(numero)) return 'Sin edad';
-    if (numero >= 0 && numero <= 3) return '0 a 3 años';
-    if (numero >= 4 && numero <= 8) return '4 a 8 años';
-    if (numero >= 9 && numero <= 12) return '9 a 12 años';
-    return '13+ años';
-  };
+  }, [normalizarBarrioSlug]);
 
   const obtenerFilasPlantilla = () => [
     { numero: 1, nombre: 'Ana', apellido: 'Perez', dni: '12345678', edad: '8', sexo: 'Femenino', barrio: 'La Cancha', nombre_tutor: 'Maria Perez' },
@@ -725,7 +596,7 @@ function Administracion({ onVolver, onLogout }) {
 
       return cumpleBusqueda && cumpleBarrio && cumpleEdad;
     });
-  }, [asistencias, reporteBarrio, reporteBusqueda, reporteEdadFiltro, reporteEdadDesde, reporteEdadHasta]);
+  }, [asistencias, reporteBarrio, reporteBusqueda, reporteEdadFiltro, reporteEdadDesde, reporteEdadHasta, normalizarBarrioSlug]);
 
   const resumenReporte = useMemo(() => {
     const total = reporteFiltrado.length;
@@ -749,7 +620,7 @@ function Administracion({ onVolver, onLogout }) {
     ].filter((item) => item.total > 0);
 
     return { total, masculinos, femeninos, otros, porBarrio, porEdad };
-  }, [reporteFiltrado]);
+  }, [reporteFiltrado, formatearBarrio, normalizarBarrioSlug]);
 
   const onDescargarReportePdf = async () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -1435,12 +1306,15 @@ function Administracion({ onVolver, onLogout }) {
                         </tbody>
                       </table>
                     </div>
-                    
-                    
+
+
                     <p className="admin-import-format-note">Solo se aceptan archivos .csv</p>
                   </div>
 
                   <div className="admin-import-actions">
+                    <button type="button" className="admin-button secondary" onClick={descargarPlantillaCsv}>
+                      📄 Descargar plantilla
+                    </button>
                     <button type="button" className="admin-button primary admin-import-main-btn" onClick={() => inputImportCsvRef.current?.click()} disabled={guardando}>
                       {guardando ? 'Procesando...' : '📥 Importar archivo CSV'}
                     </button>
