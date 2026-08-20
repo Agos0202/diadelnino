@@ -515,26 +515,6 @@ function Administracion({ onVolver, onLogout }) {
     { numero: 3, nombre: 'Sofia', apellido: 'Lopez', dni: '23456789', edad: '6', sexo: 'Femenino', barrio: 'El Bosque', nombre_tutor: 'Laura Lopez' },
   ];
 
-  const generarPlantillaCsv = () => [
-    'nombre,apellido,dni,edad,sexo,barrio,nombre_tutor',
-    'Ana,Perez,12345678,8,Femenino,La Cancha,Maria Perez',
-    'Lucas,Gomez,87654321,7,Masculino,La Villa,Luis Gomez',
-    'Sofia,Lopez,23456789,6,Femenino,El Bosque,Laura Lopez',
-  ].join('\n');
-
-  const descargarPlantillaCsv = () => {
-    const contenido = generarPlantillaCsv();
-    const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'plantilla_ninos.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   const csvFilasVisibles = useMemo(() => {
     const busquedaCsv = csvBusqueda.trim().toLowerCase();
     return csvPreview.filas.filter((item) => {
@@ -1273,7 +1253,7 @@ function Administracion({ onVolver, onLogout }) {
                       <h4 className="admin-import-format-title">Formato requerido del CSV</h4>
                     </div>
                     <p className="admin-import-format-text">
-                      El archivo debe contener estas columnas. Podés descargar la plantilla para completar.
+                      El archivo debe contener estas columnas.
                     </p>
                     
                     <div className="admin-import-format-table-wrap">
@@ -1312,9 +1292,6 @@ function Administracion({ onVolver, onLogout }) {
                   </div>
 
                   <div className="admin-import-actions">
-                    <button type="button" className="admin-button secondary" onClick={descargarPlantillaCsv}>
-                      📄 Descargar plantilla
-                    </button>
                     <button type="button" className="admin-button primary admin-import-main-btn" onClick={() => inputImportCsvRef.current?.click()} disabled={guardando}>
                       {guardando ? 'Procesando...' : '📥 Importar archivo CSV'}
                     </button>
