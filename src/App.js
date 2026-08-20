@@ -1,15 +1,13 @@
 import { useState, useEffect } from 'react';
 import PantallaInicio from './PantallaInicio';
-import TarjetaEvento from './TarjetaEvento';
 import Administracion from './Administracion';
 import Login from './Login';
 
+const RUTA_ADMIN = '/panel_diadelnino';
+
 const obtenerPantallaDesdeRuta = () => {
-  if (window.location.pathname.startsWith('/4dmin2026c0mun4')) {
+  if (window.location.pathname.startsWith(RUTA_ADMIN)) {
     return 'administracion';
-  }
-  if (window.location.pathname === '/evento') {
-    return 'evento';
   }
   return 'inicio';
 };
@@ -20,9 +18,9 @@ function App() {
     return window.localStorage.getItem('adminLogueado') === '1';
   });
 
-  const irAEvento = () => {
-    window.history.pushState({ pantalla: 'evento' }, '', '/evento');
-    setPantalla('evento');
+  const irAAdministracion = () => {
+    window.history.pushState({ pantalla: 'administracion' }, '', RUTA_ADMIN);
+    setPantalla('administracion');
   };
 
   const irAInicio = () => {
@@ -60,10 +58,8 @@ function App() {
         ) : (
           <Login onLogin={handleLogin} />
         )
-      ) : pantalla === 'inicio' ? (
-        <PantallaInicio onEnter={irAEvento} />
       ) : (
-        <TarjetaEvento onVolver={irAInicio} />
+        <PantallaInicio onEnter={irAAdministracion} />
       )}
     </>
   );

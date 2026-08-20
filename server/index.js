@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const { createClient } = require('@supabase/supabase-js');
 const { v2: cloudinary } = require('cloudinary');
 
 dotenv.config();
@@ -13,6 +14,23 @@ const ADMIN_PASSWORD = 'Comuna2026*';
 const CLOUDINARY_CLOUD_NAME = (process.env.CLOUDINARY_CLOUD_NAME || '').trim().toLowerCase();
 const CLOUDINARY_API_KEY = (process.env.CLOUDINARY_API_KEY || '').trim();
 const CLOUDINARY_API_SECRET = (process.env.CLOUDINARY_API_SECRET || '').trim();
+const placeholderPattern = /^(tu_|example|replace_me|placeholder|changeme)/i;
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').trim();
+const SUPABASE_SERVICE_ROLE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const hasRealSupabaseConfig = Boolean(
+  SUPABASE_URL &&
+  SUPABASE_SERVICE_ROLE_KEY &&
+  !placeholderPattern.test(SUPABASE_URL) &&
+  !placeholderPattern.test(SUPABASE_SERVICE_ROLE_KEY)
+);
+const supabase = hasRealSupabaseConfig
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
+  : null;
 
 app.use(cors());
 app.use(express.json());
@@ -99,7 +117,46 @@ const isCloudinaryNotFound = (error) => {
   return httpCode === 404 || (typeof message === 'string' && message.toLowerCase().includes('not found'));
 };
 
-const getDb = async () => {
+const mapAsistenciaToSupabaseRow = (item) => ({
+  id: String(item.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+  nombre: String(item.nombre ?? '').trim(),
+  apellido: String(item.apellido ?? '').trim(),
+  telefono: String(item.telefono ?? '').trim(),
+  dni: String(item.dni ?? item.email ?? '').trim(),
+  email: String(item.email ?? item.dni ?? '').trim(),
+  numero_sorteo: Number(item.numeroSorteo ?? 0),
+  estado_asistencia: ['presente', 'ausente', 'pendiente'].includes(item.estadoAsistencia)
+    ? item.estadoAsistencia
+    : 'pendiente',
+  fecha_confirmacion: item.fechaConfirmacion || new Date().toISOString(),
+});
+
+const mapSupabaseRowToAsistencia = (item) => ({
+  ...item,
+  id: String(item.id),
+  nombre: String(item.nombre ?? '').trim(),
+  apellido: String(item.apellido ?? '').trim(),
+  telefono: String(item.telefono ?? '').trim(),
+  dni: String(item.dni ?? item.email ?? '').trim(),
+  email: String(item.email ?? item.dni ?? '').trim(),
+  numeroSorteo: Number(item.numero_sorteo ?? item.numeroSorteo ?? 0),
+  estadoAsistencia: ['presente', 'ausente', 'pendiente'].includes(item.estado_asistencia)
+    ? item.estado_asistencia
+    : 'pendiente',
+  fechaConfirmacion: item.fecha_confirmacion || item.fechaConfirmacion || new Date().toISOString(),
+});
+
+const getDbFromSupabase = async () => {
+  const { data, error } = await supabase.from('asistencias').select('*').order('numero_sorteo', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizarDb((data || []).map(mapSupabaseRowToAsistencia));
+};
+
+const getDbFromCloudinary = async () => {
   try {
     const resource = await cloudinary.api.resource(CLOUDINARY_DB_PUBLIC_ID, { resource_type: 'raw' });
     const bustCacheUrl = `${resource.secure_url}?t=${Date.now()}`;
@@ -128,7 +185,33 @@ const getDb = async () => {
   }
 };
 
-const saveDb = async (db) => {
+const getDb = async () => {
+  if (supabase) {
+    return getDbFromSupabase();
+  }
+
+  return getDbFromCloudinary();
+};
+
+const saveDbToSupabase = async (db) => {
+  const rows = (db.asistencias || []).map(mapAsistenciaToSupabaseRow);
+
+  const { error: deleteError } = await supabase.from('asistencias').delete().neq('id', '');
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase.from('asistencias').insert(rows);
+  if (error) {
+    throw error;
+  }
+};
+
+const saveDbToCloudinary = async (db) => {
   const payload = Buffer.from(
     JSON.stringify({
       asistencias: db.asistencias,
@@ -158,11 +241,35 @@ const saveDb = async (db) => {
   });
 };
 
+const saveDb = async (db) => {
+  if (supabase) {
+    await saveDbToSupabase(db);
+    return;
+  }
+
+  await saveDbToCloudinary(db);
+};
+
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
-const logCloudinaryStatus = async () => {
+const logDatabaseStatus = async () => {
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('asistencias').select('id').limit(1);
+      if (error) {
+        console.error('Supabase error:', getErrorMessage(error, 'Error desconocido'));
+        return;
+      }
+      console.log('Supabase OK');
+      return;
+    } catch (error) {
+      console.error('Supabase error:', getErrorMessage(error, 'Error desconocido'));
+      return;
+    }
+  }
+
   try {
     await cloudinary.api.ping();
     console.log('Cloudinary OK');
@@ -355,6 +462,6 @@ module.exports = { app };
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`API escuchando en http://localhost:${PORT}`);
-    logCloudinaryStatus();
+    logDatabaseStatus();
   });
 }

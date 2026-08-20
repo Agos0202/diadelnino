@@ -32,8 +32,8 @@ function PantallaInicio({ onEnter }) {
 
           {/* Título principal */}
           <h1 className="main-title">
-            Feliz Día<br />
-            <span className="highlight">del Trabajador</span>
+            Evento<br />
+            <span className="highlight">Día del Niño</span>
           </h1>
 
           {/* Subtítulo */}
