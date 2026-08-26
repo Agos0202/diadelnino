@@ -11,6 +11,7 @@ import {
   eliminarNinosEnLote,
   guardarNino,
   listarNinos,
+  normalizarDiscapacidad,
   normalizarDni,
   normalizarFilaNinoDesdeCsv,
   parsearCsv,
@@ -104,6 +105,7 @@ function Administracion({ onVolver, onLogout }) {
     sexo: 'Masculino',
     barrio_id: '',
     nombre_tutor: '',
+    discapacidad: 'No',
   });
 
   const [busqueda, setBusqueda] = useState('');
@@ -249,6 +251,7 @@ function Administracion({ onVolver, onLogout }) {
       sexo: 'Masculino',
       barrio_id: '',
       nombre_tutor: '',
+      discapacidad: 'No',
     });
     setEditandoId(null);
     setCrudError('');
@@ -310,6 +313,7 @@ function Administracion({ onVolver, onLogout }) {
       sexo: asistencia.sexo || 'Masculino',
       barrio_id: asistencia.barrio_id || asistencia.barrio || '',
       nombre_tutor: asistencia.nombre_tutor || '',
+      discapacidad: asistencia.discapacidad ? 'Si' : 'No',
     });
     irASeccion('personal');
   };
@@ -530,9 +534,9 @@ function Administracion({ onVolver, onLogout }) {
   }, [normalizarBarrioSlug]);
 
   const obtenerFilasPlantilla = () => [
-    { numero: 1, nombre: 'Ana', apellido: 'Perez', dni: '12345678', edad: '8', sexo: 'Femenino', barrio: 'La Cancha', nombre_tutor: 'Maria Perez' },
-    { numero: 2, nombre: 'Lucas', apellido: 'Gomez', dni: '87654321', edad: '7', sexo: 'Masculino', barrio: 'La Villa', nombre_tutor: 'Luis Gomez' },
-    { numero: 3, nombre: 'Sofia', apellido: 'Lopez', dni: '23456789', edad: '6', sexo: 'Femenino', barrio: 'El Bosque', nombre_tutor: 'Laura Lopez' },
+    { numero: 1, nombre: 'Ana', apellido: 'Perez', dni: '12345678', edad: '8', sexo: 'Femenino', barrio: 'La Cancha', nombre_tutor: 'Maria Perez', discapacidad: 'No' },
+    { numero: 2, nombre: 'Lucas', apellido: 'Gomez', dni: '87654321', edad: '7', sexo: 'Masculino', barrio: 'La Villa', nombre_tutor: 'Luis Gomez', discapacidad: 'No' },
+    { numero: 3, nombre: 'Sofia', apellido: 'Lopez', dni: '23456789', edad: '6', sexo: 'Femenino', barrio: 'El Bosque', nombre_tutor: 'Laura Lopez', discapacidad: 'Si' },
   ];
 
   const csvFilasVisibles = useMemo(() => {
@@ -630,7 +634,7 @@ function Administracion({ onVolver, onLogout }) {
       const sexo = String(item?.sexo || '').trim();
 
       if (!mapa.has(barrio)) {
-        mapa.set(barrio, { barrio, femenino: 0, masculino: 0 });
+        mapa.set(barrio, { barrio, femenino: 0, masculino: 0, discapacidad: 0 });
       }
 
       const entrada = mapa.get(barrio);
@@ -638,6 +642,9 @@ function Administracion({ onVolver, onLogout }) {
         entrada.femenino += 1;
       } else if (sexo === 'Masculino') {
         entrada.masculino += 1;
+      }
+      if (item?.discapacidad) {
+        entrada.discapacidad += 1;
       }
     });
 
@@ -655,7 +662,7 @@ function Administracion({ onVolver, onLogout }) {
       const sexo = String(item?.sexo || '').trim();
 
       if (!mapa.has(clave)) {
-        mapa.set(clave, { edad: clave, femenino: 0, masculino: 0 });
+        mapa.set(clave, { edad: clave, femenino: 0, masculino: 0, discapacidad: 0 });
       }
 
       const entrada = mapa.get(clave);
@@ -663,6 +670,9 @@ function Administracion({ onVolver, onLogout }) {
         entrada.femenino += 1;
       } else if (sexo === 'Masculino') {
         entrada.masculino += 1;
+      }
+      if (item?.discapacidad) {
+        entrada.discapacidad += 1;
       }
     });
 
@@ -809,16 +819,17 @@ function Administracion({ onVolver, onLogout }) {
 
       const totalFemenino = resumenPorBarrioSexo.reduce((acc, item) => acc + item.femenino, 0);
       const totalMasculino = resumenPorBarrioSexo.reduce((acc, item) => acc + item.masculino, 0);
+      const totalDiscapacidad = resumenPorBarrioSexo.reduce((acc, item) => acc + item.discapacidad, 0);
 
       const filas = resumenPorBarrioSexo.length > 0
-        ? resumenPorBarrioSexo.map((item) => [item.barrio, item.femenino, item.masculino, item.total])
-        : [['Sin datos', 0, 0, 0]];
+        ? resumenPorBarrioSexo.map((item) => [item.barrio, item.femenino, item.masculino, item.total, item.discapacidad])
+        : [['Sin datos', 0, 0, 0, 0]];
 
-      filas.push(['Total general', totalFemenino, totalMasculino, totalFemenino + totalMasculino]);
+      filas.push(['Total general', totalFemenino, totalMasculino, totalFemenino + totalMasculino, totalDiscapacidad]);
 
       autoTable(doc, {
         startY: 138,
-        head: [['Barrio', 'Femenino', 'Masculino', 'Total']],
+        head: [['Barrio', 'Femenino', 'Masculino', 'Total', 'Discapacidad']],
         body: filas,
         theme: 'grid',
         headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255] },
@@ -875,16 +886,17 @@ function Administracion({ onVolver, onLogout }) {
 
       const totalFemenino = resumenPorEdadSexo.reduce((acc, item) => acc + item.femenino, 0);
       const totalMasculino = resumenPorEdadSexo.reduce((acc, item) => acc + item.masculino, 0);
+      const totalDiscapacidad = resumenPorEdadSexo.reduce((acc, item) => acc + item.discapacidad, 0);
 
       const filas = resumenPorEdadSexo.length > 0
-        ? resumenPorEdadSexo.map((item) => [item.edad === -1 ? 'Sin edad' : `${item.edad} años`, item.femenino, item.masculino, item.total])
-        : [['Sin datos', 0, 0, 0]];
+        ? resumenPorEdadSexo.map((item) => [item.edad === -1 ? 'Sin edad' : `${item.edad} años`, item.femenino, item.masculino, item.total, item.discapacidad])
+        : [['Sin datos', 0, 0, 0, 0]];
 
-      filas.push(['Total general', totalFemenino, totalMasculino, totalFemenino + totalMasculino]);
+      filas.push(['Total general', totalFemenino, totalMasculino, totalFemenino + totalMasculino, totalDiscapacidad]);
 
       autoTable(doc, {
         startY: 138,
-        head: [['Edad', 'Femenino', 'Masculino', 'Total']],
+        head: [['Edad', 'Femenino', 'Masculino', 'Total', 'Discapacidad']],
         body: filas,
         theme: 'grid',
         headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255] },
@@ -934,7 +946,7 @@ function Administracion({ onVolver, onLogout }) {
         throw new Error('El CSV no tiene filas de datos.');
       }
 
-      const columnasEsperadas = ['nombre', 'apellido', 'dni', 'edad', 'sexo', 'barrio', 'nombre_tutor'];
+      const columnasEsperadas = ['nombre', 'apellido', 'dni', 'edad', 'sexo', 'barrio', 'nombre_tutor', 'discapacidad'];
       const columnasArchivo = Object.keys(filas[0] || {});
       const faltantes = columnasEsperadas.filter((columna) => !columnasArchivo.includes(columna));
       const sobran = columnasArchivo.filter((columna) => !columnasEsperadas.includes(columna));
@@ -1015,6 +1027,7 @@ function Administracion({ onVolver, onLogout }) {
             barrio: barrioNormalizado,
             barrio_id: barrioNormalizado,
             nombre_tutor: String(filaNormalizada.nombre_tutor || '').trim(),
+            discapacidad: normalizarDiscapacidad(filaNormalizada.discapacidad) ? 'Si' : 'No',
           },
           errores,
           valido: errores.length === 0,
@@ -1432,6 +1445,14 @@ function Administracion({ onVolver, onLogout }) {
                         <label htmlFor="nombre_tutor" className="admin-label">Nombre del tutor</label>
                         <input id="nombre_tutor" name="nombre_tutor" type="text" className="admin-input" value={formData.nombre_tutor} onChange={onChangeFormulario} />
                       </div>
+
+                      <div className="admin-form-field">
+                        <label htmlFor="discapacidad" className="admin-label">Discapacidad</label>
+                        <select id="discapacidad" name="discapacidad" className="admin-input" value={formData.discapacidad} onChange={onChangeFormulario}>
+                          <option value="No">No</option>
+                          <option value="Si">Sí</option>
+                        </select>
+                      </div>
                     </div>
 
                     {crudError ? <p className="admin-error">{crudError}</p> : null}
@@ -1468,6 +1489,7 @@ function Administracion({ onVolver, onLogout }) {
                             <th>sexo</th>
                             <th>barrio</th>
                             <th>nombre_tutor</th>
+                            <th>discapacidad</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1481,6 +1503,7 @@ function Administracion({ onVolver, onLogout }) {
                               <td>{fila.sexo}</td>
                               <td>{fila.barrio}</td>
                               <td>{fila.nombre_tutor}</td>
+                              <td>{fila.discapacidad}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1596,6 +1619,7 @@ function Administracion({ onVolver, onLogout }) {
                               <th>Sexo</th>
                               <th>Barrio</th>
                               <th>Tutor</th>
+                              <th>Discapacidad</th>
                               <th>Estado</th>
                               <th>Detalle</th>
                             </tr>
@@ -1614,6 +1638,7 @@ function Administracion({ onVolver, onLogout }) {
                                   <td>{item.fila.sexo || '-'}</td>
                                   <td>{item.fila.barrio || '-'}</td>
                                   <td>{item.fila.nombre_tutor || '-'}</td>
+                                  <td>{item.fila.discapacidad || '-'}</td>
                                   <td className={`admin-import-estado admin-import-estado-${item.estado}`}>
                                     {estadoEmoji} {estadoTexto}
                                   </td>

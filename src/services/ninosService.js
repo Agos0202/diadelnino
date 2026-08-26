@@ -28,6 +28,11 @@ export const validarDni = (dni) => {
 
 export const normalizarTexto = (value) => String(value ?? '').trim();
 
+export const normalizarDiscapacidad = (value) => {
+  const texto = normalizarTexto(value).toLowerCase();
+  return ['si', 'sí', 'true', '1', 'x', 'verdadero'].includes(texto);
+};
+
 export const prepararNinoParaGuardar = (nino) => {
   const dni = validarDni(nino?.dni);
 
@@ -40,6 +45,7 @@ export const prepararNinoParaGuardar = (nino) => {
     barrio_id: normalizarTexto(nino?.barrio_id),
     nombre_tutor: normalizarTexto(nino?.nombre_tutor),
     observaciones: normalizarTexto(nino?.observaciones),
+    discapacidad: normalizarDiscapacidad(nino?.discapacidad),
   };
 };
 
@@ -148,6 +154,7 @@ export const normalizarFilaNinoDesdeCsv = (fila) => ({
   barrio_id: fila.barrio_id || fila.barrio || fila.barrio_nombre || '',
   nombre_tutor: fila.nombre_tutor || fila.tutor || fila.tutor_nombre || '',
   observaciones: fila.observaciones || fila.observacion || '',
+  discapacidad: fila.discapacidad || fila.tiene_discapacidad || '',
 });
 
 const mapRowToNino = (row) => ({
@@ -161,6 +168,7 @@ const mapRowToNino = (row) => ({
   barrio_id: normalizarTexto(row.barrio_id || row.barrio),
   nombre_tutor: normalizarTexto(row.nombre_tutor ?? row.tutor ?? row.tutor_nombre),
   observaciones: normalizarTexto(row.observaciones ?? row.observacion),
+  discapacidad: Boolean(row.discapacidad),
 });
 
 export const verificarDniDuplicado = async (dni, excluirId = null) => {
@@ -274,6 +282,7 @@ export const crearNino = async (nino) => {
       barrio: payload.barrio_id || null,
       nombre_tutor: payload.nombre_tutor || null,
       observaciones: payload.observaciones || null,
+      discapacidad: payload.discapacidad,
     })
     .select()
     .single();
@@ -315,6 +324,7 @@ export const crearNinosEnLote = async (ninos) => {
         barrio: payload.barrio_id || null,
         nombre_tutor: payload.nombre_tutor || null,
         observaciones: payload.observaciones || null,
+        discapacidad: payload.discapacidad,
       });
     } catch (error) {
       fallidos.push({ nino, message: error.message || 'Registro inválido.' });
@@ -381,6 +391,7 @@ export const actualizarNino = async (id, nino) => {
       barrio: payload.barrio_id || null,
       nombre_tutor: payload.nombre_tutor || null,
       observaciones: payload.observaciones || null,
+      discapacidad: payload.discapacidad,
     })
     .eq('id', id)
     .select()
