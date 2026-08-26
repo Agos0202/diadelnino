@@ -19,6 +19,33 @@ import {
 
 const RUTA_ADMIN = '/panel_diadelnino';
 
+const BARRIOS_DISPONIBLES = [
+  { slug: 'la-villa', nombre: 'La Villa' },
+  { slug: 'la-cancha', nombre: 'La Cancha' },
+  { slug: 'el-bosque', nombre: 'El Bosque' },
+  { slug: 'la-avenida', nombre: 'La Avenida' },
+  { slug: 'la-flor', nombre: 'La Flor' },
+  { slug: 'cerco-ingenio', nombre: 'Cerco Ingenio' },
+  { slug: 'tres-luces', nombre: 'Tres Luces' },
+  { slug: 'el-fortin', nombre: 'El Fortín' },
+  { slug: 'colonia-1-de-florida', nombre: 'Colonia 1 de Florida' },
+  { slug: 'colonia-2-de-florida', nombre: 'Colonia 2 de Florida' },
+  { slug: 'colonia-3-de-florida', nombre: 'Colonia 3 de Florida' },
+  { slug: 'colonia-4-de-florida', nombre: 'Colonia 4 de Florida' },
+  { slug: 'colonia-5-de-florida', nombre: 'Colonia 5 de Florida' },
+  { slug: '40-viviendas', nombre: '40 Viviendas' },
+  { slug: 'victorino', nombre: 'Victorino' },
+  { slug: 'el-privado', nombre: 'El Privado' },
+  { slug: 'el-talar', nombre: 'El Talar' },
+  { slug: 'la-boca', nombre: 'La Boca' },
+  { slug: 'quilmes', nombre: 'Quilmes' },
+  { slug: 'colonia-3', nombre: 'Colonia 3' },
+  { slug: 'colonia-4', nombre: 'Colonia 4' },
+  { slug: 'colonia-10', nombre: 'Colonia 10' },
+  { slug: 'marquez', nombre: 'Marquez' },
+  { slug: 'delfin-gallo', nombre: 'Delfin Gallo' },
+];
+
 const obtenerSeccionDesdeRuta = () => {
   const path = window.location.pathname.toLowerCase();
   if (path === `${RUTA_ADMIN}/personal`) return 'personal';
@@ -490,23 +517,16 @@ function Administracion({ onVolver, onLogout }) {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
+      .replace(/^barrio[^a-z0-9]+/, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
   }, []);
 
   const formatearBarrio = useCallback((valor) => {
     const slug = normalizarBarrioSlug(valor);
-    const mapa = {
-      'la-cancha': 'La Cancha',
-      'el-bosque': 'El Bosque',
-      'la-villa': 'La Villa',
-      'el-fortin': 'El Fortín',
-      'el-fortín': 'El Fortín',
-      'fortin': 'El Fortín',
-      'fortín': 'El Fortín',
-    };
+    const encontrado = BARRIOS_DISPONIBLES.find((barrio) => barrio.slug === slug);
 
-    return mapa[slug] || String(valor ?? '').trim() || 'Sin barrio';
+    return encontrado?.nombre || String(valor ?? '').trim() || 'Sin barrio';
   }, [normalizarBarrioSlug]);
 
   const obtenerFilasPlantilla = () => [
@@ -584,10 +604,10 @@ function Administracion({ onVolver, onLogout }) {
     const femeninos = reporteFiltrado.filter((item) => String(item?.sexo || '').trim() === 'Femenino').length;
     const otros = reporteFiltrado.filter((item) => String(item?.sexo || '').trim() === 'Otro').length;
 
-    const porBarrio = ['la-cancha', 'el-bosque', 'la-villa', 'el-fortin']
-      .map((slug) => ({
+    const porBarrio = BARRIOS_DISPONIBLES
+      .map(({ slug, nombre }) => ({
         slug,
-        nombre: formatearBarrio(slug),
+        nombre,
         total: reporteFiltrado.filter((item) => normalizarBarrioSlug(item?.barrio_id || item?.barrio || '') === slug).length,
       }))
       .filter((item) => item.total > 0);
@@ -600,7 +620,31 @@ function Administracion({ onVolver, onLogout }) {
     ].filter((item) => item.total > 0);
 
     return { total, masculinos, femeninos, otros, porBarrio, porEdad };
-  }, [reporteFiltrado, formatearBarrio, normalizarBarrioSlug]);
+  }, [reporteFiltrado, normalizarBarrioSlug]);
+
+  const resumenPorBarrioSexo = useMemo(() => {
+    const mapa = new Map();
+
+    reporteFiltrado.forEach((item) => {
+      const barrio = formatearBarrio(item?.barrio_id || item?.barrio || '');
+      const sexo = String(item?.sexo || '').trim();
+
+      if (!mapa.has(barrio)) {
+        mapa.set(barrio, { barrio, femenino: 0, masculino: 0 });
+      }
+
+      const entrada = mapa.get(barrio);
+      if (sexo === 'Femenino') {
+        entrada.femenino += 1;
+      } else if (sexo === 'Masculino') {
+        entrada.masculino += 1;
+      }
+    });
+
+    return Array.from(mapa.values())
+      .map((item) => ({ ...item, total: item.femenino + item.masculino }))
+      .sort((a, b) => a.barrio.localeCompare(b.barrio, 'es'));
+  }, [reporteFiltrado, formatearBarrio]);
 
   const onDescargarReportePdf = async () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -700,6 +744,72 @@ function Administracion({ onVolver, onLogout }) {
     });
 
     doc.save('reporte_ninos.pdf');
+  };
+
+  const onDescargarResumenBarrioSexoPdf = async () => {
+    setDescargandoPdf(true);
+
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const colorPrimario = [32, 78, 53];
+      const colorSecundario = [231, 244, 230];
+      const colorTextoSuave = [75, 94, 84];
+
+      doc.setFillColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+      doc.rect(0, 0, pageWidth, 90, 'F');
+
+      try {
+        const logoDataUrl = await cargarLogoComoDataUrl();
+        doc.addImage(logoDataUrl, 'PNG', 36, 18, 56, 56);
+      } catch (error) {
+        // No bloquea el PDF si el logo falla.
+      }
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.text('Totales por barrio', 104, 42);
+      doc.setFontSize(10);
+      doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, 104, 60);
+
+      const filtros = [
+        `Barrio: ${reporteBarrio === 'todos' ? 'Todos' : formatearBarrio(reporteBarrio)}`,
+        `Edad: ${reporteEdadFiltro === 'todos' ? 'Todas' : reporteEdadFiltro === 'custom' ? `${reporteEdadDesde || 0} a ${reporteEdadHasta || 17}` : reporteEdadFiltro.replace('-', ' a ')}`,
+        `Búsqueda: ${reporteBusqueda || 'Sin filtro'}`,
+      ].join(' · ');
+
+      doc.setTextColor(colorTextoSuave[0], colorTextoSuave[1], colorTextoSuave[2]);
+      doc.setFontSize(10);
+      doc.text(filtros, 36, 118);
+
+      const totalFemenino = resumenPorBarrioSexo.reduce((acc, item) => acc + item.femenino, 0);
+      const totalMasculino = resumenPorBarrioSexo.reduce((acc, item) => acc + item.masculino, 0);
+
+      const filas = resumenPorBarrioSexo.length > 0
+        ? resumenPorBarrioSexo.map((item) => [item.barrio, item.femenino, item.masculino, item.total])
+        : [['Sin datos', 0, 0, 0]];
+
+      filas.push(['Total general', totalFemenino, totalMasculino, totalFemenino + totalMasculino]);
+
+      autoTable(doc, {
+        startY: 138,
+        head: [['Barrio', 'Femenino', 'Masculino', 'Total']],
+        body: filas,
+        theme: 'grid',
+        headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255] },
+        alternateRowStyles: { fillColor: colorSecundario },
+        styles: { fontSize: 10, textColor: colorTextoSuave },
+        didParseCell: (data) => {
+          if (data.row.index === filas.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
+      });
+
+      doc.save('totales_por_barrio.pdf');
+    } finally {
+      setDescargandoPdf(false);
+    }
   };
 
   const onImportarCsv = async (event) => {
@@ -1221,10 +1331,9 @@ function Administracion({ onVolver, onLogout }) {
                         <label htmlFor="barrio" className="admin-label">Barrio *</label>
                         <select id="barrio" name="barrio_id" className="admin-input" value={formData.barrio_id} onChange={onChangeFormulario}>
                           <option value="">Selecciona un barrio</option>
-                          <option value="la-cancha">La Cancha</option>
-                          <option value="el-bosque">El Bosque</option>
-                          <option value="la-villa">La Villa</option>
-                          <option value="el-fortin">El Fortin</option>
+                          {BARRIOS_DISPONIBLES.map((barrio) => (
+                            <option key={barrio.slug} value={barrio.slug}>{barrio.nombre}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -1544,14 +1653,24 @@ function Administracion({ onVolver, onLogout }) {
                   <h2 className="admin-section-title" style={{ margin: 0 }}>Reporte de niños</h2>
                   <p className="admin-subtitle" style={{ margin: '0.2rem 0 0' }}>Nómina filtrada por barrio, edad y búsqueda.</p>
                 </div>
-                <button
-                  type="button"
-                  className="admin-button primary"
-                  onClick={onDescargarReportePdf}
-                  disabled={reporteFiltrado.length === 0 || descargandoPdf}
-                >
-                  {descargandoPdf ? 'Generando PDF...' : 'Imprimir / Descargar PDF'}
-                </button>
+                <div className="admin-header-actions">
+                  <button
+                    type="button"
+                    className="admin-button secondary"
+                    onClick={onDescargarResumenBarrioSexoPdf}
+                    disabled={reporteFiltrado.length === 0 || descargandoPdf}
+                  >
+                    {descargandoPdf ? 'Generando PDF...' : 'Imprimir totales por barrio'}
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-button primary"
+                    onClick={onDescargarReportePdf}
+                    disabled={reporteFiltrado.length === 0 || descargandoPdf}
+                  >
+                    {descargandoPdf ? 'Generando PDF...' : 'Imprimir / Descargar PDF'}
+                  </button>
+                </div>
               </div>
 
               <div className="admin-report-summary">
@@ -1583,10 +1702,9 @@ function Administracion({ onVolver, onLogout }) {
                     onChange={(event) => setReporteBarrio(event.target.value)}
                   >
                     <option value="todos">Todos</option>
-                    <option value="la-cancha">La Cancha</option>
-                    <option value="el-bosque">El Bosque</option>
-                    <option value="la-villa">La Villa</option>
-                    <option value="el-fortin">El Fortín</option>
+                    {BARRIOS_DISPONIBLES.map((barrio) => (
+                      <option key={barrio.slug} value={barrio.slug}>{barrio.nombre}</option>
+                    ))}
                   </select>
                 </div>
 
