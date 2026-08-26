@@ -646,6 +646,31 @@ function Administracion({ onVolver, onLogout }) {
       .sort((a, b) => a.barrio.localeCompare(b.barrio, 'es'));
   }, [reporteFiltrado, formatearBarrio]);
 
+  const resumenPorEdadSexo = useMemo(() => {
+    const mapa = new Map();
+
+    reporteFiltrado.forEach((item) => {
+      const edad = Number.parseInt(item?.edad, 10);
+      const clave = Number.isFinite(edad) ? edad : -1;
+      const sexo = String(item?.sexo || '').trim();
+
+      if (!mapa.has(clave)) {
+        mapa.set(clave, { edad: clave, femenino: 0, masculino: 0 });
+      }
+
+      const entrada = mapa.get(clave);
+      if (sexo === 'Femenino') {
+        entrada.femenino += 1;
+      } else if (sexo === 'Masculino') {
+        entrada.masculino += 1;
+      }
+    });
+
+    return Array.from(mapa.values())
+      .map((item) => ({ ...item, total: item.femenino + item.masculino }))
+      .sort((a, b) => a.edad - b.edad);
+  }, [reporteFiltrado]);
+
   const onDescargarReportePdf = async () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -807,6 +832,72 @@ function Administracion({ onVolver, onLogout }) {
       });
 
       doc.save('totales_por_barrio.pdf');
+    } finally {
+      setDescargandoPdf(false);
+    }
+  };
+
+  const onDescargarResumenEdadSexoPdf = async () => {
+    setDescargandoPdf(true);
+
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const colorPrimario = [32, 78, 53];
+      const colorSecundario = [231, 244, 230];
+      const colorTextoSuave = [75, 94, 84];
+
+      doc.setFillColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+      doc.rect(0, 0, pageWidth, 90, 'F');
+
+      try {
+        const logoDataUrl = await cargarLogoComoDataUrl();
+        doc.addImage(logoDataUrl, 'PNG', 36, 18, 56, 56);
+      } catch (error) {
+        // No bloquea el PDF si el logo falla.
+      }
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.text('Listado por edad', 104, 42);
+      doc.setFontSize(10);
+      doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, 104, 60);
+
+      const filtros = [
+        `Barrio: ${reporteBarrio === 'todos' ? 'Todos' : formatearBarrio(reporteBarrio)}`,
+        `Edad: ${reporteEdadFiltro === 'todos' ? 'Todas' : reporteEdadFiltro === 'custom' ? `${reporteEdadDesde || 0} a ${reporteEdadHasta || 17}` : reporteEdadFiltro.replace('-', ' a ')}`,
+        `Búsqueda: ${reporteBusqueda || 'Sin filtro'}`,
+      ].join(' · ');
+
+      doc.setTextColor(colorTextoSuave[0], colorTextoSuave[1], colorTextoSuave[2]);
+      doc.setFontSize(10);
+      doc.text(filtros, 36, 118);
+
+      const totalFemenino = resumenPorEdadSexo.reduce((acc, item) => acc + item.femenino, 0);
+      const totalMasculino = resumenPorEdadSexo.reduce((acc, item) => acc + item.masculino, 0);
+
+      const filas = resumenPorEdadSexo.length > 0
+        ? resumenPorEdadSexo.map((item) => [item.edad === -1 ? 'Sin edad' : `${item.edad} años`, item.femenino, item.masculino, item.total])
+        : [['Sin datos', 0, 0, 0]];
+
+      filas.push(['Total general', totalFemenino, totalMasculino, totalFemenino + totalMasculino]);
+
+      autoTable(doc, {
+        startY: 138,
+        head: [['Edad', 'Femenino', 'Masculino', 'Total']],
+        body: filas,
+        theme: 'grid',
+        headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255] },
+        alternateRowStyles: { fillColor: colorSecundario },
+        styles: { fontSize: 10, textColor: colorTextoSuave },
+        didParseCell: (data) => {
+          if (data.row.index === filas.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
+      });
+
+      doc.save('listado_por_edad.pdf');
     } finally {
       setDescargandoPdf(false);
     }
@@ -1661,6 +1752,14 @@ function Administracion({ onVolver, onLogout }) {
                     disabled={reporteFiltrado.length === 0 || descargandoPdf}
                   >
                     {descargandoPdf ? 'Generando PDF...' : 'Imprimir totales por barrio'}
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-button secondary"
+                    onClick={onDescargarResumenEdadSexoPdf}
+                    disabled={reporteFiltrado.length === 0 || descargandoPdf}
+                  >
+                    {descargandoPdf ? 'Generando PDF...' : 'Imprimir listado por edad'}
                   </button>
                   <button
                     type="button"
